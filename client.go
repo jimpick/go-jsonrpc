@@ -247,6 +247,11 @@ func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int)
 }
 
 func (c *client) sendRequest(ctx context.Context, req request, chCtor makeChanSink) (clientResponse, error) {
+	debugJSON, err := json.Marshal(req)
+	if err != nil {
+		return clientResponse{}, err
+	}
+	fmt.Println("Jim request", string(debugJSON))
 	rchan := make(chan clientResponse, 1)
 	creq := clientRequest{
 		req:   req,
