@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync/atomic"
+	"syscall/js"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -86,16 +87,16 @@ type client struct {
 
 // NewMergeClient is like NewClient, but allows to specify multiple structs
 // to be filled in the same namespace, using one connection
-func NewJsMergeClient(ctx context.Context /* addr string, */, namespace string, outs []interface{}, opts ...Option) (ClientCloser, error) {
+func NewJsMergeClient(ctx context.Context, jsHandler js.Value, namespace string, outs []interface{}, opts ...Option) (ClientCloser, error) {
 	config := defaultConfig()
 	for _, o := range opts {
 		o(&config)
 	}
 
-	return jsClient(ctx /* addr, */, namespace, outs, config)
+	return jsClient(ctx, jsHandler, namespace, outs, config)
 }
 
-func jsClient(ctx context.Context /* addr string, */, namespace string, outs []interface{}, config Config) (ClientCloser, error) {
+func jsClient(ctx context.Context, jsHandler js.Value, namespace string, outs []interface{}, config Config) (ClientCloser, error) {
 	c := client{
 		namespace:     namespace,
 		paramEncoders: config.paramEncoders,
@@ -143,10 +144,32 @@ func jsClient(ctx context.Context /* addr string, */, namespace string, outs []i
 				return clientResponse{}, xerrors.New("request and response id didn't match")
 			}
 		*/
-		fmt.Printf("Jim jsClient req3 %v\n", string(b))
-		return clientResponse{}, xerrors.Errorf("Jim2")
+		fmt.Printf("Jim jsClient req %v\n", string(b))
 
-		// return resp, nil
+		c := make(chan string)
+
+		responseHandler := func(this js.Value, param []js.Value) interface{} {
+			fmt.Printf("Jim jsClient response %v\n", param[0].String())
+			c <- param[0].String()
+			return nil
+		}
+
+		response := jsHandler.Invoke(js.ValueOf(string(b)), js.FuncOf(responseHandler))
+		fmt.Printf("Jim jsClient initial response %v\n", response.String())
+		// return clientResponse{}, xerrors.Errorf("Jim2")
+		body := <-c
+		var resp clientResponse
+
+		err = json.Unmarshal([]byte(body), &resp)
+		if err != nil {
+			return clientResponse{}, xerrors.Errorf("unmarshaling response: %w", err)
+		}
+
+		if resp.ID != *cr.req.ID {
+			return clientResponse{}, xerrors.New("request and response id didn't match")
+		}
+
+		return resp, nil
 	}
 
 	if err := c.provide(outs); err != nil {
