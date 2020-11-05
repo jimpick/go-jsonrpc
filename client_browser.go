@@ -85,9 +85,9 @@ type client struct {
 	idCtr     int64
 }
 
-// NewMergeClient is like NewClient, but allows to specify multiple structs
+// NewJSMergeClient is like NewClient, but allows to specify multiple structs
 // to be filled in the same namespace, using one connection
-func NewJsMergeClient(ctx context.Context, jsHandler js.Value, namespace string, outs []interface{}, opts ...Option) (ClientCloser, error) {
+func NewJSMergeClient(ctx context.Context, jsHandler js.Value, namespace string, outs []interface{}, opts ...Option) (ClientCloser, error) {
 	config := defaultConfig()
 	for _, o := range opts {
 		o(&config)
