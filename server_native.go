@@ -4,8 +4,6 @@ package jsonrpc
 
 import (
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 
@@ -47,9 +45,11 @@ func (s *RPCServer) handleWS(ctx context.Context, w http.ResponseWriter, r *http
 	}
 
 	(&wsConn{
-		conn:    c,
-		handler: s,
-		exiting: make(chan struct{}),
+		rpcConnection: rpcConnection{
+			handler: s,
+			exiting: make(chan struct{}),
+		},
+		conn: c,
 	}).handleWsConn(ctx)
 
 	if err := c.Close(); err != nil {
@@ -69,34 +69,4 @@ func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.handleReader(ctx, r.Body, w, rpcError)
-}
-
-func rpcError(wf func(func(io.Writer)), req *request, code int, err error) {
-	log.Errorf("RPC Error: %s", err)
-	wf(func(w io.Writer) {
-		if hw, ok := w.(http.ResponseWriter); ok {
-			hw.WriteHeader(500)
-		}
-
-		log.Warnf("rpc error: %s", err)
-
-		if req.ID == nil { // notification
-			return
-		}
-
-		resp := response{
-			Jsonrpc: "2.0",
-			ID:      *req.ID,
-			Error: &respError{
-				Code:    code,
-				Message: err.Error(),
-			},
-		}
-
-		err = json.NewEncoder(w).Encode(resp)
-		if err != nil {
-			log.Warnf("failed to write rpc error: %s", err)
-			return
-		}
-	})
 }

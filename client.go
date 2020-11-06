@@ -247,15 +247,17 @@ func websocketClient(ctx context.Context, addr string, namespace string, outs []
 	c.exiting = exiting
 
 	go (&wsConn{
+		rpcConnection: rpcConnection{
+			handler:  nil,
+			requests: requests,
+			stop:     stop,
+			exiting:  exiting,
+		},
 		conn:             conn,
 		connFactory:      connFactory,
 		reconnectBackoff: config.reconnectBackoff,
 		pingInterval:     config.pingInterval,
 		timeout:          config.timeout,
-		handler:          nil,
-		requests:         requests,
-		stop:             stop,
-		exiting:          exiting,
 	}).handleWsConn(ctx)
 
 	if err := c.provide(outs); err != nil {

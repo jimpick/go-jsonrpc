@@ -2,17 +2,60 @@
 
 package jsonrpc
 
+import (
+	"context"
+	"fmt"
+	"strings"
+	"syscall/js"
+	"time"
+)
+
 // NewJSServer creates new RPCServer instance
-func NewJSServer(opts ...ServerOption) *RPCServer {
+func NewJSServer(globalJSName string, opts ...ServerOption) *RPCServer {
+	ctx := context.Background()
+
 	config := defaultServerConfig()
 	for _, o := range opts {
 		o(&config)
 	}
 
-	return &RPCServer{
+	s := &RPCServer{
 		methods:       map[string]rpcHandler{},
 		paramDecoders: config.paramDecoders,
 	}
+
+	connectFunc := func(this js.Value, param []js.Value) interface{} {
+		responseHandler := param[0]
+		fmt.Printf("go-jsonrpc connect\n")
+
+		c := jsConn{
+			rpcConnection: rpcConnection{
+				handler: s,
+				exiting: make(chan struct{}),
+			},
+			sendResponse: func(response string) {
+				fmt.Printf("go-jsonrpc sendResponse %v\n", response)
+				responseHandler.Invoke(js.ValueOf(response))
+			},
+		}
+		go c.handleJsConn(ctx)
+
+		receiveFunc := func(this js.Value, param []js.Value) interface{} {
+			request := param[0].String()
+			fmt.Printf("go-jsonrpc receive: %v\n", request)
+			go func() {
+				time.Sleep(1 * time.Second)
+				c.incoming <- strings.NewReader(request)
+			}()
+			return nil
+		}
+
+		return js.FuncOf(receiveFunc)
+	}
+
+	js.Global().Set(globalJSName, js.FuncOf(connectFunc))
+
+	return s
 }
 
 // TODO: return errors to clients per spec
@@ -27,35 +70,5 @@ func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.handleReader(ctx, r.Body, w, rpcError)
-}
-
-func rpcError(wf func(func(io.Writer)), req *request, code int, err error) {
-	log.Errorf("RPC Error: %s", err)
-	wf(func(w io.Writer) {
-		if hw, ok := w.(http.ResponseWriter); ok {
-			hw.WriteHeader(500)
-		}
-
-		log.Warnf("rpc error: %s", err)
-
-		if req.ID == nil { // notification
-			return
-		}
-
-		resp := response{
-			Jsonrpc: "2.0",
-			ID:      *req.ID,
-			Error: &respError{
-				Code:    code,
-				Message: err.Error(),
-			},
-		}
-
-		err = json.NewEncoder(w).Encode(resp)
-		if err != nil {
-			log.Warnf("failed to write rpc error: %s", err)
-			return
-		}
-	})
 }
 */
