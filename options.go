@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"reflect"
+	"syscall/js"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -14,7 +15,8 @@ type Config struct {
 	pingInterval     time.Duration
 	timeout          time.Duration
 
-	paramEncoders map[reflect.Type]ParamEncoder
+	paramEncoders   map[reflect.Type]ParamEncoder
+	connectCallback func(environment js.Value)
 
 	noReconnect      bool
 	proxyConnFactory func(func() (*websocket.Conn, error)) func() (*websocket.Conn, error) // for testing

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"syscall/js"
-	"time"
 )
 
 // NewJSServer creates new RPCServer instance
@@ -26,7 +25,11 @@ func NewJSServer(globalJSName string, opts ...ServerOption) *RPCServer {
 
 	connectFunc := func(this js.Value, param []js.Value) interface{} {
 		responseHandler := param[0]
+		environment := param[1]
 		fmt.Printf("go-jsonrpc connect\n")
+		if config.connectCallback != nil {
+			config.connectCallback(environment)
+		}
 
 		c := jsConn{
 			rpcConnection: rpcConnection{
@@ -44,7 +47,7 @@ func NewJSServer(globalJSName string, opts ...ServerOption) *RPCServer {
 			request := param[0].String()
 			fmt.Printf("go-jsonrpc receive: %v\n", request)
 			go func() {
-				time.Sleep(1 * time.Second)
+				// time.Sleep(1 * time.Second)
 				c.incoming <- strings.NewReader(request)
 			}()
 			return nil
@@ -72,3 +75,9 @@ func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handleReader(ctx, r.Body, w, rpcError)
 }
 */
+
+func WithConnectCallback(cb func(environment js.Value)) ServerOption {
+	return func(c *ServerConfig) {
+		c.connectCallback = cb
+	}
+}

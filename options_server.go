@@ -3,19 +3,22 @@ package jsonrpc
 import (
 	"context"
 	"reflect"
+	"syscall/js"
 )
 
 type ParamDecoder func(ctx context.Context, json []byte) (reflect.Value, error)
 
 type ServerConfig struct {
-	paramDecoders map[reflect.Type]ParamDecoder
+	paramDecoders   map[reflect.Type]ParamDecoder
+	connectCallback func(environment js.Value)
 }
 
 type ServerOption func(c *ServerConfig)
 
 func defaultServerConfig() ServerConfig {
 	return ServerConfig{
-		paramDecoders: map[reflect.Type]ParamDecoder{},
+		paramDecoders:   map[reflect.Type]ParamDecoder{},
+		connectCallback: nil,
 	}
 }
 

@@ -65,6 +65,7 @@ type response struct {
 // Register
 
 func (s *RPCServer) register(namespace string, r interface{}) {
+	fmt.Printf("Jim go-jsonrpc register %v %v\n", namespace, r)
 	val := reflect.ValueOf(r)
 	//TODO: expect ptr
 
@@ -98,6 +99,7 @@ func (s *RPCServer) register(namespace string, r interface{}) {
 			valOut: valOut,
 		}
 	}
+	fmt.Printf("Jim go-jsonrpc methods %v\n", s.methods)
 }
 
 // Handle
