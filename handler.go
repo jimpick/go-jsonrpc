@@ -122,6 +122,7 @@ func (s *RPCServer) handleReader(ctx context.Context, r io.Reader, w io.Writer, 
 }
 
 func doCall(methodName string, f reflect.Value, params []reflect.Value) (out []reflect.Value, err error) {
+	fmt.Printf("Jim go-jsonrpc doCall %v\n", methodName)
 	defer func() {
 		if i := recover(); i != nil {
 			err = xerrors.Errorf("panic in rpc method '%s': %s", methodName, i)
