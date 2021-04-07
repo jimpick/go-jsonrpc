@@ -144,18 +144,19 @@ func jsClient(ctx context.Context, jsHandler js.Value, namespace string, outs []
 				return clientResponse{}, xerrors.New("request and response id didn't match")
 			}
 		*/
-		fmt.Printf("Jim jsClient req %v\n", string(b))
+		// fmt.Printf("Jim jsClient req %v\n", string(b))
 
 		c := make(chan string)
 
 		responseHandler := func(this js.Value, param []js.Value) interface{} {
-			fmt.Printf("Jim jsClient response %v\n", param[0].String())
+			// fmt.Printf("Jim jsClient response %v\n", param[0].String())
 			c <- param[0].String()
 			return nil
 		}
 
-		response := jsHandler.Invoke(js.ValueOf(string(b)), js.FuncOf(responseHandler))
-		fmt.Printf("Jim jsClient initial response %v\n", response.String())
+		// response := jsHandler.Invoke(js.ValueOf(string(b)), js.FuncOf(responseHandler))
+		// fmt.Printf("Jim jsClient initial response %v\n", response.String())
+		jsHandler.Invoke(js.ValueOf(string(b)), js.FuncOf(responseHandler))
 		// return clientResponse{}, xerrors.Errorf("Jim2")
 		body := <-c
 		var resp clientResponse
