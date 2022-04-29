@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -30,6 +31,23 @@ var (
 	contextType = reflect.TypeOf(new(context.Context)).Elem()
 
 	log = logging.Logger("rpc")
+
+	_defaultHTTPClient = &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
 )
 
 // ErrClient is an error which occurred on the client side the library
@@ -140,19 +158,16 @@ func httpClient(ctx context.Context, addr string, namespace string, outs []inter
 
 		hreq.Header.Set("Content-Type", "application/json")
 
-		httpResp, err := http.DefaultClient.Do(hreq)
+		httpResp, err := _defaultHTTPClient.Do(hreq)
 		if err != nil {
 			return clientResponse{}, err
 		}
+		defer httpResp.Body.Close()
 
 		var resp clientResponse
 
 		if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
-			return clientResponse{}, xerrors.Errorf("unmarshaling response: %w", err)
-		}
-
-		if err := httpResp.Body.Close(); err != nil {
-			return clientResponse{}, err
+			return clientResponse{}, xerrors.Errorf("http status %s unmarshaling response: %w", httpResp.Status, err)
 		}
 
 		if resp.ID != *cr.req.ID {
@@ -174,7 +189,10 @@ func httpClient(ctx context.Context, addr string, namespace string, outs []inter
 func websocketClient(ctx context.Context, addr string, namespace string, outs []interface{}, requestHeader http.Header, config Config) (ClientCloser, error) {
 	connFactory := func() (*websocket.Conn, error) {
 		conn, _, err := websocket.DefaultDialer.Dial(addr, requestHeader)
-		return conn, err
+		if err != nil {
+			return nil, xerrors.Errorf("cannot dial address %s for %w", addr, err)
+		}
+		return conn, nil
 	}
 
 	if config.proxyConnFactory != nil {
@@ -343,7 +361,7 @@ func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int)
 							if buf.Len() > 10 {
 								log.Warnw("rpc output message buffer", "n", buf.Len())
 							} else {
-								log.Infow("rpc output message buffer", "n", buf.Len())
+								log.Debugw("rpc output message buffer", "n", buf.Len())
 							}
 						}
 					} else {
