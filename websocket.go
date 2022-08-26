@@ -451,7 +451,7 @@ func (c *wsConn) closeInFlight() {
 			ID:      id,
 			Error: &respError{
 				Message: "handler: websocket connection closed",
-				Code:    2,
+				Code:    eTempWSError,
 			},
 		}
 	}
@@ -635,7 +635,7 @@ func (c *wsConn) handleWsConn(ctx context.Context) {
 						ID:      *req.req.ID,
 						Error: &respError{
 							Message: "handler: websocket connection closed",
-							Code:    2,
+							Code:    eTempWSError,
 						},
 					}
 					c.writeLk.Unlock()
