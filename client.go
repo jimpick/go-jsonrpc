@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"sync/atomic"
 	"time"
@@ -414,7 +415,9 @@ func (c *client) sendRequest(ctx context.Context, req request, chCtor makeChanSi
 	if err != nil {
 		return clientResponse{}, err
 	}
-	fmt.Println("Jim request", string(debugJSON))
+	if os.Getenv("DUMP_JSONRPC") != "" {
+		fmt.Println("DUMP_JSONRPC request", string(debugJSON))
+	}
 	creq := clientRequest{
 		req:   req,
 		ready: make(chan clientResponse, 1),
