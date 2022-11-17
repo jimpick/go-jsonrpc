@@ -168,14 +168,11 @@ func httpClient(ctx context.Context, addr string, namespace string, outs []inter
 		defer httpResp.Body.Close()
 
 		var resp clientResponse
-
-		dec := json.NewDecoder(httpResp.Body)
-		dec.UseNumber()
-		if err := dec.Decode(&resp); err != nil {
+		if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 			return clientResponse{}, xerrors.Errorf("http status %s unmarshaling response: %w", httpResp.Status, err)
 		}
 
-		if resp.ID, err = translateID(resp.ID); err != nil {
+		if resp.ID, err = normalizeID(resp.ID); err != nil {
 			return clientResponse{}, xerrors.Errorf("failed to response ID: %w", err)
 		}
 
@@ -482,7 +479,7 @@ func (fn *rpcFunc) processError(err error) []reflect.Value {
 }
 
 func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value) {
-	id := atomic.AddInt64(&fn.client.idCtr, 1)
+	var id interface{} = atomic.AddInt64(&fn.client.idCtr, 1)
 	params := make([]param, len(args)-fn.hasCtx)
 	for i, arg := range args[fn.hasCtx:] {
 		enc, found := fn.client.paramEncoders[arg.Type()]
@@ -517,6 +514,16 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 		retVal, chCtor = fn.client.makeOutChan(ctx, fn.ftyp, fn.valOut)
 	}
 
+	// Prepare the ID to send on the wire.
+	// We track int64 ids as float64 in the inflight map (because that's what
+	// they'll be decoded to). encoding/json outputs numbers with their minimal
+	// encoding, avoding the decimal point when possible, i.e. 3 will never get
+	// converted to 3.0.
+	id, err := normalizeID(id)
+	if err != nil {
+		return fn.processError(fmt.Errorf("failed to normalize id")) // should probably panic
+	}
+
 	req := request{
 		Jsonrpc: "2.0",
 		ID:      id,
@@ -540,7 +547,6 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 	}
 
 	var resp clientResponse
-	var err error
 	// keep retrying if got a forced closed websocket conn and calling method
 	// has retry annotation
 	for attempt := 0; true; attempt++ {

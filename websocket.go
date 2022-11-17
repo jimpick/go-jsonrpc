@@ -297,7 +297,7 @@ func (c *wsConn) cancelCtx(req frame) {
 		log.Warnf("%s call with ID set, won't respond", wsCancel)
 	}
 
-	var id int64
+	var id interface{}
 	if err := json.Unmarshal(req.Params[0].data, &id); err != nil {
 		log.Error("handle me:", err)
 		return
@@ -609,12 +609,8 @@ func (c *wsConn) handleWsConn(ctx context.Context) {
 				// r = io.TeeReader(r, os.Stderr)
 
 				var frame frame
-				dec := json.NewDecoder(r)
-				dec.UseNumber()
-				err = dec.Decode(&frame)
-
-				if err == nil {
-					if frame.ID, err = translateID(frame.ID); err == nil {
+				if err = json.NewDecoder(r).Decode(&frame); err == nil {
+					if frame.ID, err = normalizeID(frame.ID); err == nil {
 						c.handleFrame(ctx, frame)
 						go c.nextMessage()
 						continue
@@ -691,19 +687,14 @@ func (c *wsConn) handleWsConn(ctx context.Context) {
 	}
 }
 
-// Takes an ID as received on the wire, validates it, and translates it to a normalized ID appropriate for keying.
-func translateID(id interface{}) (interface{}, error) {
+// Takes an ID as received on the wire, validates it, and translates it to a
+// normalized ID appropriate for keying.
+func normalizeID(id interface{}) (interface{}, error) {
 	switch v := id.(type) {
-	case string:
+	case string, float64, nil:
 		return v, nil
-	case nil:
-		return nil, nil
-	case json.Number:
-		if v, err := v.Int64(); err == nil {
-			return v, nil
-		} else {
-			return nil, xerrors.Errorf("invalid non-integer id")
-		}
+	case int64: // clients sending int64 need to normalize to float64
+		return float64(v), nil
 	default:
 		return nil, xerrors.Errorf("invalid id type: %T", id)
 	}
